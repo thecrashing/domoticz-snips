@@ -6,18 +6,20 @@ import urllib2
 import json
 import io
 import jellyfish
+ 
 from hermes_python.hermes import Hermes
+from hermes_python.ontology import *
 
-global global_conf
-global domoticz_base_url
+
+MAX_JARO_DISTANCE = 0.4
 
 CONFIGURATION_ENCODING_FORMAT = "utf-8"
 CONFIG_INI = "config.ini"
-MAX_JARO_DISTANCE = 0.4
 
 class SnipsConfigParser(ConfigParser.SafeConfigParser):
     def to_dict(self):
         return {section : {option_name : option for option_name, option in self.items(section)} for section in self.sections()}
+
 
 def read_configuration_file(configuration_file):
     try:
@@ -28,71 +30,114 @@ def read_configuration_file(configuration_file):
     except (IOError, ConfigParser.Error) as e:
         return dict()
 
-def getSceneNames(base_url):
-    response = urllib2.urlopen(global_conf.get("secret").get("domoticz url")+'/json.htm?type=scenes')
+def getSceneNames(conf,myListSceneOrSwitch):
+    myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=scenes'
+    response = urllib2.urlopen(myURL)
     jsonresponse = json.load(response)
-    allscenes = dict()
     for scene in jsonresponse["result"]:
-        allscenes[scene["idx"]] = scene["Name"]
-    return allscenes
-
-def getSwitchNames(base_url):
-    response = urllib2.urlopen(global_conf.get("secret").get("domoticz url")+'/json.htm?type=command&param=getlightswitches')
+        myName=scene["Name"].encode('utf-8')
+        myListSceneOrSwitch[(scene["idx"])] = {'Type':'switchscene','Name':myName}
+    return myListSceneOrSwitch
+def getSwitchNames(conf,myListSceneOrSwitch):
+    myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param=getlightswitches'
+    response = urllib2.urlopen(myURL)
     jsonresponse = json.load(response)
-    allswitches = dict()
-    for switch in jsonresponse["result"]:
-        allswitches[switch["idx"]] = switch["Name"]
-    return allswitches
+    for sw in jsonresponse["result"]:
+        myName=sw["Name"].encode('utf-8')
+        myListSceneOrSwitch[(sw["idx"])] = {'Type':'switchlight','Name':myName}
 
-def listScenes_received(hermes, intent_message):
-    sentence = "I found these scenes, "
-    scenes = getSceneNames(domoticz_base_url)
-    print scenes
-    for idx,scene in scenes.items():
-       sentence = sentence + ", "+scene
-    hermes.publish_end_session(intent_message.session_id, sentence)
-
-def listSwitches_received(hermes, intent_message):
-    sentence = "I found these switches, "
-    switches = getSwitchNames(domoticz_base_url)
-    print switches
-    for idx,switch in switches.items():
-       sentence = sentence + ", "+switch
-    hermes.publish_end_session(intent_message.session_id, sentence)
-
-def sceneOn_received(hermes, intent_message):
+    return myListSceneOrSwitch
     
-    print('Intent {}'.format(intent_message.intent))
+    
+def BuildActionSlotList(intent):
 
-    for (slot_value, slot) in intent_message.slots.items():
-        print('Slot {} -> \n\tRaw: {} \tValue: {}'.format(slot_value, slot[0].raw_value, slot[0].slot_value.value.value))
-    scenes = getSceneNames(domoticz_base_url)
+    jintent = intent.slots.toDict()
+    intentSwitchList=list()
+    intentSwitchActionList=list()
+    intentSwitchState='On' #by default if no action
+    #for mySlot in jintent:#["slots"]:
+#    for (slot_value, slot) in intent.slots.items():
+#        jintent = slot.toDict()
+#        print(jintent)
+
+
+    for (slot_value, slot) in intent.slots.items():
+        if slot_value=="Action":
+            if len(intentSwitchList)>0:
+                for mySwitch in intentSwitchList:
+                    intentSwitchActionList.append({'Name':mySwitch,'State':intentSwitchState})
+            if slot[0].slot_value.value.value=="TurnOn":
+                intentSwitchState='On'
+            else :
+                intentSwitchState='Off'   
+            intentSwitchList=list()
+        elif slot_value=="Interrupteur":
+            for slot_value2 in slot.all():
+                intentSwitchList.append(slot_value2.value)
+    
+    for mySwitch in intentSwitchList:
+        intentSwitchActionList.append({'Name':mySwitch,'State':intentSwitchState})
+    return intentSwitchActionList
+
+def curlCmd(idx,myCmd,myParam,conf):
+    command_url="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param='+myParam+'&idx='+str(idx)+'&switchcmd='+myCmd
+    ignore_result = urllib2.urlopen(command_url)
+
+    
+def ActionneEntity(name,action,myListSceneOrSwitch,conf):
+#derived from nice work of https://github.com/iMartyn/domoticz-snips
     lowest_distance = MAX_JARO_DISTANCE
     lowest_idx = 65534
     lowest_name = "Unknown"
-    for idx,scene in scenes.items():
-        print "Comparing "+ scene +" and "+ slot[0].slot_value.value.value
-        distance = 1-jellyfish.jaro_distance(scene, unicode(slot[0].slot_value.value.value, "utf-8"))
-        print "Distance is "+str(distance)
+    MyWord=name
+    for idx,scene in myListSceneOrSwitch.items():
+        distance = 1-jellyfish.jaro_distance(unicode(scene['Name'],'utf-8'), MyWord)
+    #    print "Distance is "+str(distance)
         if distance < lowest_distance:
-            print "Low enough and lowest!"
+    #        print "Low enough and lowest!"
             lowest_distance = distance
             lowest_idx = idx
-            lowest_name = scene
+            lowest_name = scene['Name']
+            lowest_Type= scene['Type']
     if lowest_distance < MAX_JARO_DISTANCE:
-        command_url = global_conf.get("secret").get("domoticz url")+'/json.htm?type=command&param=switchscene&idx='+str(lowest_idx)+'&switchcmd=On'
-        print '"curl"ing '+command_url
-        ignore_result = urllib2.urlopen(command_url)
-        #ignore_result.read() # So we finish the connection correctly.
-        hermes.publish_end_session(intent_message.session_id, "Turning on scene "+lowest_name)
+        #print (lowest_Type)
+        #print(lowest_name)
+        #print(lowest_idx)
+        curlCmd(lowest_idx,action,lowest_Type,conf)
+        return True
+        #hermes.publish_end_session(intent_message.session_id, "j'allume "+lowest_name)
     else:
-        hermes.publish_end_session(intent_message.session_id, "I'm sorry, I couldn't find a scene like "+lowest_name)
+        return False
+    
+
+def subscribe_intent_callback(hermes, intentMessage):
+
+     
+    conf = read_configuration_file(CONFIG_INI)
+    action_wrapper(hermes, intentMessage, conf)
+
+def action_wrapper(hermes, intentMessage, conf):
+    myListSceneOrSwitch=dict()
+    myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
+    myListSceneOrSwitch= getSwitchNames(conf,myListSceneOrSwitch)
+    intentSwitchActionList=BuildActionSlotList(intentMessage)
+    actionText=""
+    myAction = True
+    for intentSwitchAction in intentSwitchActionList:
+        myAction=myAction and ActionneEntity(intentSwitchAction["Name"],intentSwitchAction["State"],myListSceneOrSwitch,conf)
+        if intentSwitchAction["State"]=="On": 
+            texte="J'allume"
+        else:
+            texte="J'éteins "
+        actionText='{}, {} {}'.format(actionText,texte,(intentSwitchAction["Name"]).encode('utf-8'))
+    actionText2=actionText.decode("utf-8")
+    if myAction : 
+        hermes.publish_end_session(intentMessage.session_id, actionText2)
+    else:
+        hermes.publish_end_session(intentMessage.session_id, "desolé, je ne pas m'executer ")
+    
 
 if __name__ == "__main__":
-    global_conf = read_configuration_file(CONFIG_INI)
-    domoticz_base_url = global_conf.get("secret").get("domoticz url")
-    with Hermes('localhost:1883') as h:
-        h.subscribe_intent("iMartyn:listScenes",listScenes_received) \
-         .subscribe_intent("iMartyn:sceneOn",sceneOn_received) \
-         .subscribe_intent("iMartyn:listSwitches",listSwitches_received) \
+    with Hermes("localhost:1883") as h:
+        h.subscribe_intent("felinh:IntentLumiere", subscribe_intent_callback) \
          .start()
