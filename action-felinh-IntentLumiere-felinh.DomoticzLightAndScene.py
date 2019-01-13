@@ -114,9 +114,28 @@ def subscribe_intent_callback(hermes, intentMessage):
 
      
     conf = read_configuration_file(CONFIG_INI)
-    action_wrapper(hermes, intentMessage, conf)
+    #a=IntentClassifierResult(intentMessage).intent_name
+    if len(intentMessage.slots.OrdreDivers) > 0:
+     print('---------OrdreDivers----------')
+     action_wrapperOrdreDirect(hermes, intentMessage, conf)
+    else:
+     print('---------Ordre Action----------')
+     action_wrapperOrdre(hermes, intentMessage, conf)
 
-def action_wrapper(hermes, intentMessage, conf):
+def action_wrapperOrdreDirect(hermes, intentMessage, conf):
+    myListSceneOrSwitch=dict()
+    myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
+    ActionneEntity(intentSwitchAction["Name"],'On',myListSceneOrSwitch,conf)
+    texte="J'allume"
+    actionText='{}, {} {}'.format(actionText,texte,(intentSwitchAction["Name"]).encode('utf-8'))
+    actionText2=actionText.decode("utf-8")
+    if True : 
+        hermes.publish_end_session(intentMessage.session_id, actionText2)
+    else:
+        hermes.publish_end_session(intentMessage.session_id, "desolé, je ne pas m'executer ")
+    
+
+def action_wrapperOrdre(hermes, intentMessage, conf):
     myListSceneOrSwitch=dict()
     myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
     myListSceneOrSwitch= getSwitchNames(conf,myListSceneOrSwitch)
@@ -139,5 +158,6 @@ def action_wrapper(hermes, intentMessage, conf):
 
 if __name__ == "__main__":
     with Hermes("localhost:1883") as h:
-        h.subscribe_intent("felinh:IntentLumiere", subscribe_intent_callback) \
-         .start()
+        h.subscribe_intent("felinh:IntentLumiere", subscribe_intent_callback)\
+        .subscribe_intent("felinh:IntentOrdreDivers", subscribe_intent_callback)\
+        .start()
