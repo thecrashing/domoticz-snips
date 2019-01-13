@@ -125,14 +125,16 @@ def subscribe_intent_callback(hermes, intentMessage):
 def action_wrapperOrdreDirect(hermes, intentMessage, conf):
     myListSceneOrSwitch=dict()
     myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
-    ActionneEntity(intentSwitchAction["Name"],'On',myListSceneOrSwitch,conf)
-    texte="J'allume"
-    actionText='{}, {} {}'.format(actionText,texte,(intentSwitchAction["Name"]).encode('utf-8'))
-    actionText2=actionText.decode("utf-8")
-    if True : 
-        hermes.publish_end_session(intentMessage.session_id, actionText2)
+    actionText = "{}".format(str(intentMessage.slots.OrdreDivers.first().value))
+    print("actionText "+actionText)
+    MyAction=ActionneEntity(actionText.decode("utf-8"),'On',myListSceneOrSwitch,conf)
+    result_sentence = "OK pour {}".format(str(actionText))  # The response that will be said out loud by the TTS engine.
+
+    if MyAction : 
+        hermes.publish_end_session(intentMessage.session_id, result_sentence)
     else:
-        hermes.publish_end_session(intentMessage.session_id, "desolé, je ne pas m'executer ")
+        print("pas d action")
+        hermes.publish_end_session(intentMessage.session_id, "desole, je ne pas m executer ")
     
 
 def action_wrapperOrdre(hermes, intentMessage, conf):
