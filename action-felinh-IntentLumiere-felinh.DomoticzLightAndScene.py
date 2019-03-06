@@ -32,7 +32,7 @@ def read_configuration_file(configuration_file):
 
 
 def getSceneNames(conf,myListSceneOrSwitch):
-    myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=scenes'
+    myURL="http://"+conf.get("secret").get("domoticz_IP")+':'+conf.get("secret").get("domoticz_Port")+'/json.htm?type=scenes'
     response = requests.get(myURL)
     jsonresponse = response.json()#json.load(response)
     for scene in jsonresponse["result"]:
@@ -40,7 +40,7 @@ def getSceneNames(conf,myListSceneOrSwitch):
         myListSceneOrSwitch[(scene["idx"])] = {'Type':'switchscene','Name':myName}
     return myListSceneOrSwitch
 def getSwitchNames(conf,myListSceneOrSwitch):
-    myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param=getlightswitches'
+    myURL="http://"+conf.get("secret").get("domoticz_IP")+':'+conf.get("secret").get("domoticz_Port")+'/json.htm?type=command&param=getlightswitches'
     response = requests.get(myURL)
     jsonresponse = response.json()#json.load(response)
     for sw in jsonresponse["result"]:
@@ -81,7 +81,7 @@ def BuildActionSlotList(intent):
     return intentSwitchActionList
 
 def curlCmd(idx,myCmd,myParam,conf):
-    command_url="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param='+myParam+'&idx='+str(idx)+'&switchcmd='+myCmd
+    command_url="http://"+conf.get("secret").get("domoticz_IP")+':'+conf.get("secret").get("domoticz_Port")+'/json.htm?type=command&param='+myParam+'&idx='+str(idx)+'&switchcmd='+myCmd
     ignore_result = requests.get(command_url)
 
     
