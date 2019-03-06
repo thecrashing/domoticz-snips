@@ -1,22 +1,22 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import ConfigParser
-import urllib2
-import json
-import io
-import jellyfish
- 
+import configparser
 from hermes_python.hermes import Hermes
+from hermes_python.ffi.utils import MqttOptions
 from hermes_python.ontology import *
 
+import io
+import requests
+import json
+import jellyfish
 
 MAX_JARO_DISTANCE = 0.4
 
 CONFIGURATION_ENCODING_FORMAT = "utf-8"
 CONFIG_INI = "config.ini"
 
-class SnipsConfigParser(ConfigParser.SafeConfigParser):
+class SnipsConfigParser(configparser.SafeConfigParser):
     def to_dict(self):
         return {section : {option_name : option for option_name, option in self.items(section)} for section in self.sections()}
 
@@ -27,21 +27,22 @@ def read_configuration_file(configuration_file):
             conf_parser = SnipsConfigParser()
             conf_parser.readfp(f)
             return conf_parser.to_dict()
-    except (IOError, ConfigParser.Error) as e:
+    except (IOError, configparser.Error) as e:
         return dict()
+
 
 def getSceneNames(conf,myListSceneOrSwitch):
     myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=scenes'
-    response = urllib2.urlopen(myURL)
-    jsonresponse = json.load(response)
+    response = requests.get(myURL)
+    jsonresponse = response.json()#json.load(response)
     for scene in jsonresponse["result"]:
         myName=scene["Name"].encode('utf-8')
         myListSceneOrSwitch[(scene["idx"])] = {'Type':'switchscene','Name':myName}
     return myListSceneOrSwitch
 def getSwitchNames(conf,myListSceneOrSwitch):
     myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param=getlightswitches'
-    response = urllib2.urlopen(myURL)
-    jsonresponse = json.load(response)
+    response = requests.get(myURL)
+    jsonresponse = response.json()#json.load(response)
     for sw in jsonresponse["result"]:
         myName=sw["Name"].encode('utf-8')
         myListSceneOrSwitch[(sw["idx"])] = {'Type':'switchlight','Name':myName}
@@ -81,7 +82,7 @@ def BuildActionSlotList(intent):
 
 def curlCmd(idx,myCmd,myParam,conf):
     command_url="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param='+myParam+'&idx='+str(idx)+'&switchcmd='+myCmd
-    ignore_result = urllib2.urlopen(command_url)
+    ignore_result = requests.get(command_url)
 
     
 def ActionneEntity(name,action,myListSceneOrSwitch,conf):
@@ -91,7 +92,8 @@ def ActionneEntity(name,action,myListSceneOrSwitch,conf):
     lowest_name = "Unknown"
     MyWord=name
     for idx,scene in myListSceneOrSwitch.items():
-        distance = 1-jellyfish.jaro_distance(unicode(scene['Name'],'utf-8'), MyWord)
+#        print(str(scene['Name'],'utf-8'))
+        distance = 1-jellyfish.jaro_distance(str(scene['Name'],'utf-8'), MyWord)
     #    print "Distance is "+str(distance)
         if distance < lowest_distance:
     #        print "Low enough and lowest!"
@@ -101,7 +103,7 @@ def ActionneEntity(name,action,myListSceneOrSwitch,conf):
             lowest_Type= scene['Type']
     if lowest_distance < MAX_JARO_DISTANCE:
         #print (lowest_Type)
-        #print(lowest_name)
+        print(lowest_name)
         #print(lowest_idx)
         curlCmd(lowest_idx,action,lowest_Type,conf)
         return True
@@ -116,7 +118,6 @@ def subscribe_intent_callback(hermes, intentMessage):
     conf = read_configuration_file(CONFIG_INI)
     #a=IntentClassifierResult(intentMessage).intent_name
     hermes.publish_continue_session(intentMessage.session_id, "OK",["felinh:IntentLumiere","felinh:IntentOrdreDivers"])
-    
     if len(intentMessage.slots.OrdreDivers) > 0:
      print('---------OrdreDivers----------')
      action_wrapperOrdreDirect(hermes, intentMessage, conf)
@@ -152,16 +153,17 @@ def action_wrapperOrdre(hermes, intentMessage, conf):
             texte="J'allume"
         else:
             texte="J'éteins "
-        actionText='{}, {} {}'.format(actionText,texte,(intentSwitchAction["Name"]).encode('utf-8'))
-    actionText2=actionText.decode("utf-8")
+        actionText='{}, {} {}'.format(actionText,texte,str(intentSwitchAction["Name"]))
     if myAction : 
-        hermes.publish_end_session(intentMessage.session_id, actionText2)
+        hermes.publish_end_session(intentMessage.session_id, actionText)
     else:
         hermes.publish_end_session(intentMessage.session_id, "desolé, je ne pas m'executer ")
     
 
+
 if __name__ == "__main__":
-    with Hermes("localhost:1883") as h:
+    mqtt_opts = MqttOptions()
+    with Hermes(mqtt_options=mqtt_opts) as h:
         h.subscribe_intent("felinh:IntentLumiere", subscribe_intent_callback)\
         .subscribe_intent("felinh:IntentOrdreDivers", subscribe_intent_callback)\
         .start()
