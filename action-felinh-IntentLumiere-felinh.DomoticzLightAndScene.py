@@ -71,7 +71,7 @@ def BuildActionSlotList(intent):
                 intentSwitchState='On'
             else :
                 intentSwitchState='Off'   
-            intentSwitchList=list()
+#            intentSwitchList=list() removed:quick workaround, by prevent bug on multiple commands 
         elif slot_value=="Interrupteur":
             for slot_value2 in slot.all():
                 intentSwitchList.append(slot_value2.value)
