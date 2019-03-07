@@ -17,6 +17,7 @@ One such file is generated per intent supported. These are standalone
 executables and will perform a connection to MQTT and register on the
 given intent using the `hermes-python` helper lib.
 
-Knwon issue: this code is subject to SNIPS bug https://github.com/snipsco/snips-issues/issues/94
+## Knwon issue 
+This code is subject to SNIPS bug https://github.com/snipsco/snips-issues/issues/94
 -  Fixed in version 1.1.2 (0.62.0)
 - go on https://github.com/snipsco/snips-issues/issues/94 for workaround
