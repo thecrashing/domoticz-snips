@@ -54,7 +54,7 @@ def BuildActionSlotList(intent):
 
     intentSwitchList=list()
     intentSwitchActionList=list()
-    intentSwitchState='On' #by default if no action
+    intentSwitchState='None' #by default if no action
     for (slot_value, slot) in intent.slots.items():
         print(slot_value)
         if slot_value=="Action" or slot_value=="Interrupteur":
@@ -76,9 +76,10 @@ def BuildActionSlotList(intent):
                 intentSwitchList.append(slot_value2.value)
                 print(slot_value2.value)
 
-    for mySwitch in intentSwitchList:
-        intentSwitchActionList.append({'Name':mySwitch,'State':intentSwitchState})
-        print(mySwitch+"------>"+intentSwitchState)
+    if not intentSwitchState=='None':
+        for mySwitch in intentSwitchList:
+            intentSwitchActionList.append({'Name':mySwitch,'State':intentSwitchState})
+            print(mySwitch+"------>"+intentSwitchState)
     return intentSwitchActionList
 
 def curlCmd(idx,myCmd,myParam,conf):
@@ -92,6 +93,8 @@ def ActionneEntity(name,action,myListSceneOrSwitch,conf):
     lowest_idx = 65534
     lowest_name = "Unknown"
     MyWord=name
+    DomoticzRealName=""
+    print("ActionneEntity: "+MyWord)
     for idx,scene in myListSceneOrSwitch.items():
 #        print(str(scene['Name'],'utf-8'))
         distance = 1-jellyfish.jaro_distance(str(scene['Name'],'utf-8'), MyWord)
@@ -104,13 +107,14 @@ def ActionneEntity(name,action,myListSceneOrSwitch,conf):
             lowest_Type= scene['Type']
     if lowest_distance < MAX_JARO_DISTANCE:
         #print (lowest_Type)
-        print(lowest_name)
+        DomoticzRealName=str(lowest_name,'utf-8')
+        print("ActionneEntity: "+DomoticzRealName)
         #print(lowest_idx)
         curlCmd(lowest_idx,action,lowest_Type,conf)
-        return True
+        return True,DomoticzRealName
         #hermes.publish_end_session(intent_message.session_id, "j'allume "+lowest_name)
     else:
-        return False
+        return False,DomoticzRealName
     
 
 def subscribe_intent_callback(hermes, intentMessage):
@@ -132,10 +136,11 @@ def action_wrapperOrdreDirect(hermes, intentMessage, conf):
     myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
     actionText = "{}".format(str(intentMessage.slots.OrdreDivers.first().value))
     print("actionText "+actionText)
-    MyAction=ActionneEntity(actionText.decode("utf-8"),'On',myListSceneOrSwitch,conf)
-    result_sentence = "OK pour {}".format(str(actionText))  # The response that will be said out loud by the TTS engine.
+    DomoticzRealName=""
+    MyAction=ActionneEntity(actionText,'On',myListSceneOrSwitch,conf)
+    result_sentence = "OK pour {}".format(str(MyAction[1]))  # The response that will be said out loud by the TTS engine.
 
-    if MyAction : 
+    if MyAction[0] : 
         hermes.publish_end_session(intentMessage.session_id, result_sentence)
     else:
         print("pas d action")
@@ -150,16 +155,18 @@ def action_wrapperOrdre(hermes, intentMessage, conf):
     actionText=""
     myAction = True
     for intentSwitchAction in intentSwitchActionList:
-        myAction=myAction and ActionneEntity(intentSwitchAction["Name"],intentSwitchAction["State"],myListSceneOrSwitch,conf)
+        Match= ActionneEntity(intentSwitchAction["Name"],intentSwitchAction["State"],myListSceneOrSwitch,conf)
+        DomoticzRealName=Match[1]
+        myAction=myAction and Match[0]
         if intentSwitchAction["State"]=="On": 
             texte="J'allume"
         else:
             texte="J'éteins "
-        actionText='{}, {} {}'.format(actionText,texte,str(intentSwitchAction["Name"]))
-    if myAction : 
+        actionText='{}, {} {}'.format(actionText,texte,str(DomoticzRealName))
+    if myAction and len(intentSwitchActionList)>0: 
         hermes.publish_end_session(intentMessage.session_id, actionText)
     else:
-        hermes.publish_end_session(intentMessage.session_id, "desolé, je ne pas m'executer ")
+        hermes.publish_end_session(intentMessage.session_id, "desolé, je n'ai pas compris")
     
 
 
