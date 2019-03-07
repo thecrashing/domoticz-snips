@@ -32,7 +32,7 @@ def read_configuration_file(configuration_file):
 
 
 def getSceneNames(conf,myListSceneOrSwitch):
-    myURL="http://"+conf.get("secret").get("domoticz_IP")+':'+conf.get("secret").get("domoticz_Port")+'/json.htm?type=scenes'
+    myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=scenes'
     response = requests.get(myURL)
     jsonresponse = response.json()#json.load(response)
     for scene in jsonresponse["result"]:
@@ -40,7 +40,7 @@ def getSceneNames(conf,myListSceneOrSwitch):
         myListSceneOrSwitch[(scene["idx"])] = {'Type':'switchscene','Name':myName}
     return myListSceneOrSwitch
 def getSwitchNames(conf,myListSceneOrSwitch):
-    myURL="http://"+conf.get("secret").get("domoticz_IP")+':'+conf.get("secret").get("domoticz_Port")+'/json.htm?type=command&param=getlightswitches'
+    myURL="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param=getlightswitches'
     response = requests.get(myURL)
     jsonresponse = response.json()#json.load(response)
     for sw in jsonresponse["result"]:
@@ -52,36 +52,37 @@ def getSwitchNames(conf,myListSceneOrSwitch):
     
 def BuildActionSlotList(intent):
 
-    jintent = intent.slots.toDict()
     intentSwitchList=list()
     intentSwitchActionList=list()
     intentSwitchState='On' #by default if no action
-    #for mySlot in jintent:#["slots"]:
-#    for (slot_value, slot) in intent.slots.items():
-#        jintent = slot.toDict()
-#        print(jintent)
-
-
     for (slot_value, slot) in intent.slots.items():
+        print(slot_value)
+        if slot_value=="Action" or slot_value=="Interrupteur":
+            for slot_value2 in slot.all():
+              print(slot_value2.value)
+
+    print("---------------------------------")
+    for (slot_value, slot) in intent.slots.items():
+        print(slot_value)
         if slot_value=="Action":
-            if len(intentSwitchList)>0:
-                for mySwitch in intentSwitchList:
-                    intentSwitchActionList.append({'Name':mySwitch,'State':intentSwitchState})
+            #NLU parsing does not preserve order of slot, thus it is impossible to have different action ON and OFF in the same intent=> keep only the first:
             if slot[0].slot_value.value.value=="TurnOn":
                 intentSwitchState='On'
             else :
                 intentSwitchState='Off'   
-#            intentSwitchList=list() removed:quick workaround, by prevent bug on multiple commands 
+            print(intentSwitchState)
         elif slot_value=="Interrupteur":
             for slot_value2 in slot.all():
                 intentSwitchList.append(slot_value2.value)
-    
+                print(slot_value2.value)
+
     for mySwitch in intentSwitchList:
         intentSwitchActionList.append({'Name':mySwitch,'State':intentSwitchState})
+        print(mySwitch+"------>"+intentSwitchState)
     return intentSwitchActionList
 
 def curlCmd(idx,myCmd,myParam,conf):
-    command_url="http://"+conf.get("secret").get("domoticz_IP")+':'+conf.get("secret").get("domoticz_Port")+'/json.htm?type=command&param='+myParam+'&idx='+str(idx)+'&switchcmd='+myCmd
+    command_url="http://"+conf.get("secret").get("domoticz_ip")+':'+conf.get("secret").get("domoticz_port")+'/json.htm?type=command&param='+myParam+'&idx='+str(idx)+'&switchcmd='+myCmd
     ignore_result = requests.get(command_url)
 
     
@@ -116,6 +117,7 @@ def subscribe_intent_callback(hermes, intentMessage):
 
      
     conf = read_configuration_file(CONFIG_INI)
+    print(conf)
     #a=IntentClassifierResult(intentMessage).intent_name
     hermes.publish_continue_session(intentMessage.session_id, "OK",["felinh:IntentLumiere","felinh:IntentOrdreDivers"])
     if len(intentMessage.slots.OrdreDivers) > 0:
