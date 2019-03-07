@@ -16,3 +16,5 @@ This dir contains a number of python executables named `action-*.py`.
 One such file is generated per intent supported. These are standalone
 executables and will perform a connection to MQTT and register on the
 given intent using the `hermes-python` helper lib.
+
+Knwon issue: this code is subject to SNIPS bug https://github.com/snipsco/snips-issues/issues/94
