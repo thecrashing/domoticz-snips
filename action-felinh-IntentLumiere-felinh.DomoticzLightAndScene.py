@@ -57,7 +57,7 @@ def BuildActionSlotList(intent):
     intentSwitchState='None' #by default if no action
     for (slot_value, slot) in intent.slots.items():
         print(slot_value)
-        if slot_value=="Action" or slot_value=="Interrupteur":
+        if slot_value=="Action" or slot_value=="Switch":
             for slot_value2 in slot.all():
               print(slot_value2.value)
 
@@ -71,7 +71,7 @@ def BuildActionSlotList(intent):
             else :
                 intentSwitchState='Off'   
             print(intentSwitchState)
-        elif slot_value=="Interrupteur":
+        elif slot_value=="Switch":
             for slot_value2 in slot.all():
                 intentSwitchList.append(slot_value2.value)
                 print(slot_value2.value)
@@ -112,7 +112,7 @@ def ActionneEntity(name,action,myListSceneOrSwitch,conf):
         #print(lowest_idx)
         curlCmd(lowest_idx,action,lowest_Type,conf)
         return True,DomoticzRealName
-        #hermes.publish_end_session(intent_message.session_id, "j'allume "+lowest_name)
+        #hermes.publish_end_session(intent_message.session_id, "turning on "+lowest_name)
     else:
         return False,DomoticzRealName
     
@@ -123,31 +123,31 @@ def subscribe_intent_callback(hermes, intentMessage):
     conf = read_configuration_file(CONFIG_INI)
     print(conf)
     #a=IntentClassifierResult(intentMessage).intent_name
-    hermes.publish_continue_session(intentMessage.session_id, "OK",["felinh:IntentLumiere","felinh:IntentOrdreDivers"])
-    if len(intentMessage.slots.OrdreDivers) > 0:
-     print('---------OrdreDivers----------')
-     action_wrapperOrdreDirect(hermes, intentMessage, conf)
+    hermes.publish_continue_session(intentMessage.session_id, "OK",["thecrashing:IntentLights","thecrashing:IntentCommands"])
+    if len(intentMessage.slots.Commands) > 0:
+     print('---------Misc Commands----------')
+     actioin_wrapperMiscCommands(hermes, intentMessage, conf)
     else:
-     print('---------Ordre Action----------')
-     action_wrapperOrdre(hermes, intentMessage, conf)
+     print('---------Action Commands----------')
+     actioin_wrapperCommands(hermes, intentMessage, conf)
 
-def action_wrapperOrdreDirect(hermes, intentMessage, conf):
+def actioin_wrapperMiscCommands(hermes, intentMessage, conf):
     myListSceneOrSwitch=dict()
     myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
-    actionText = "{}".format(str(intentMessage.slots.OrdreDivers.first().value))
+    actionText = "{}".format(str(intentMessage.slots.Commands.first().value))
     print("actionText "+actionText)
     DomoticzRealName=""
     MyAction=ActionneEntity(actionText,'On',myListSceneOrSwitch,conf)
-    result_sentence = "OK pour {}".format(str(MyAction[1]))  # The response that will be said out loud by the TTS engine.
+    result_sentence = "OK for {}".format(str(MyAction[1]))  # The response that will be said out loud by the TTS engine.
 
     if MyAction[0] : 
         hermes.publish_end_session(intentMessage.session_id, result_sentence)
     else:
-        print("pas d action")
-        hermes.publish_end_session(intentMessage.session_id, "desole, je ne pas m executer ")
+        print("no action")
+        hermes.publish_end_session(intentMessage.session_id, "sorry, unable to run command")
     
 
-def action_wrapperOrdre(hermes, intentMessage, conf):
+def actioin_wrapperCommands(hermes, intentMessage, conf):
     myListSceneOrSwitch=dict()
     myListSceneOrSwitch= getSceneNames(conf,myListSceneOrSwitch)
     myListSceneOrSwitch= getSwitchNames(conf,myListSceneOrSwitch)
@@ -159,20 +159,20 @@ def action_wrapperOrdre(hermes, intentMessage, conf):
         DomoticzRealName=Match[1]
         myAction=myAction and Match[0]
         if intentSwitchAction["State"]=="On": 
-            texte="J'allume"
+            texte="turning on"
         else:
-            texte="J'éteins "
+            texte="turning off"
         actionText='{}, {} {}'.format(actionText,texte,str(DomoticzRealName))
     if myAction and len(intentSwitchActionList)>0: 
         hermes.publish_end_session(intentMessage.session_id, actionText)
     else:
-        hermes.publish_end_session(intentMessage.session_id, "desolé, je n'ai pas compris")
+        hermes.publish_end_session(intentMessage.session_id, "sorry, I do not understand")
     
 
 
 if __name__ == "__main__":
     mqtt_opts = MqttOptions()
     with Hermes(mqtt_options=mqtt_opts) as h:
-        h.subscribe_intent("felinh:IntentLumiere", subscribe_intent_callback)\
-        .subscribe_intent("felinh:IntentOrdreDivers", subscribe_intent_callback)\
-        .start()
+        h.subscribe_intent("thecrashing:IntentLights", subscribe_intent_callback)\
+        .subscribe_intent("thecrashing:IntentCommands", subscribe_intent_callback)\
+.start()
